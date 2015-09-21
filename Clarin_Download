@@ -1,0 +1,136 @@
+#this code that downloads all article text from the main page of Clarin
+#creates a csv file (with the columns Article Number; Date; Title; Text; URL) and a plain text file for treetagger
+#creates a list of urls gathered to avoid repition of articles
+#must have a file called url_downloads.txt in the working directory
+
+#to acccess urls
+import requests
+
+#to identify date and create a pause between downloads if needed 
+import time
+
+#to recognize patterns in newspaper links
+import re
+
+#to create a utf-8 text file
+import codecs
+
+# to change the working directory
+import os
+
+
+
+#to identufy the links on the main page
+from bs4 import BeautifulSoup
+
+#to identify the title and main body of the articles
+from goose import Goose
+
+#set the language to Spanish
+g = Goose({'use_meta_language': False, 'target_language':'es'})
+
+#######################################################################
+
+#set working directory
+os.chdir("/Users/jacqueline/Dropbox/Current/Project04-Sem_Scope_Corpus/Clarin")
+
+#### data used
+date = time.strftime("%Y-%m-%d")
+section_urls = [ "http://www.clarin.com/politica/", "http://www.clarin.com/mundo/", "http://www.clarin.com/sociedad/", "http://www.clarin.com/policiales/", "http://www.clarin.com/cartas_al_pais/", "http://www.clarin.com/opinion/", "http://www.clarin.com/deportes/"] 
+newspaper = "clarin"
+
+#counter to keep track of the successfully download articles
+article_count = 0
+
+#create the csv file
+with codecs.open("clarin_" + date + ".csv", "w", "utf-8-sig") as article_file:
+	article_file.write("Article Number\tDate\tTitle\tText\tURL\tNewspaper\tSection\n")
+	
+	#create plain text file for treetagger
+	with codecs.open("clarin_" + date + ".txt", "w", "utf-8-sig") as plaintext:
+		#loop over all section urls	
+		for url in section_urls:
+
+			#identify the section by its url 
+			section = re.search("http://www.clarin.com/(.*)/", url).group(1)
+			
+				
+			
+			#open list of previously downloaded urls, if the file doesn't exist create an empty list
+			
+			try: download_url_list = open("url_downloads_" + section + ".txt").read().split()
+			except: download_url_list = []
+			
+			with open("url_downloads_" + section + ".txt", "a") as downloaded_url_file:
+				#######################################################################
+				####identify links of interest
+
+				#get main website html content
+				web_content = requests.get(url).content
+				soup = BeautifulSoup(web_content)
+
+				#identify all the links appearing in the main page
+				links = []
+				for link in soup.find_all("a"):
+					try: 
+						if re.search(section, link['href']):
+							links.append(link['href'])
+
+					except KeyError, err: continue 
+	
+				links = set(links)
+
+				print len(links), section, "Links found" 
+			
+
+				###############################################################################
+				#loop through each link
+				
+
+				#access the website for each article
+				for alink in links:
+					if alink in download_url_list:
+						continue
+					if alink.startswith("/"):
+						alink = "http://www.clarin.com" + alink
+					#extract information with goose
+					try: article = g.extract(url= alink)
+					except: 
+						#print "Not goose friendly: ", alink 
+						continue
+	
+	 
+					title = article.title
+					text = article.cleaned_text
+					if not title:
+						title = "Ningun titulo"
+					
+					if not text:
+						#print "No text: ", alink
+						continue
+		
+					article_count += 1
+	
+		
+	
+					#write to CSV file (with the columns Article Number; Date; Title; Text; URL)
+					article_file.write(str(article_count) + "\t" + date + "\t" + title + "\t" + re.sub("\s+|,", " ", text)[:50] + "\t" + alink + "\t" +newspaper + "\t" + section + "\n")
+					#time.sleep(1)
+
+
+					#write to plain text file
+					plaintext.write(str(article_count) + "START_FILE:" + alink + "\n" + section + "\n" +  title +  "\n" + re.sub("\s+", " ", text) + "\n")
+					#print "Written to text: ", alink
+
+					#write url to the downloaded_url file
+					downloaded_url_file.write(alink + "\n") 
+
+			print "Completed: ", section,  "\nArticles downloaded: ", article_count
+
+
+print "###### Completed Clarin Section download######"
+print('\a')
+
+
+
+
