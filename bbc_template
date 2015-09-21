@@ -1,0 +1,48 @@
+# accessing material online
+import urllib
+# regular expression support
+import re
+# operating system things
+import os
+
+# BBC news main page
+url = "http://www.bbc.com/news/"
+# read the main page
+bbcmain = urllib.urlopen(url).read()
+
+write_files_to = "/Users/name/Desktop/bbcfiles/"
+
+# find all addresses of subpages with stories
+# assumption:
+# they have the form
+# <a class="story" href="...">
+subpages = re.findall("<a class=\"story\"[^>]*href=\"(.*?)\"[^>]*>", bbcmain)
+
+for subpage_url in subpages:
+    # determine complete address of the subpage
+    if subpage_url.startswith("http:"):
+        # complete address, retrieve as is
+        pass
+    elif subpage_url.startswith("/news/"):
+        # partial address, add BBC
+        subpage_url = "http://www.bbc.com" + subpage_url
+    else:
+        # partial address, but we're not completely sure what it is
+        subpage_url = "http://www.bbc.com" + subpage_url
+
+    # retrieve data, store
+    newname = os.path.basename(subpage_url)
+    urllib.urlretrieve(subpage_url, filename = write_files_to + newname)
+
+# extracting text and discarding HTML code
+from bs4 import BeautifulSoup
+import os
+
+# read all files in directory write_files_to, 
+# store contents in text_contents (you may want to do something more meaningful with the text)
+text_contents = [ ]
+for filename in os.listdir(write_files_to):
+    wholename = write_files_to + "/" + filename
+    htmldoc = open(wholename).read()
+    soup = BeautifulSoup(htmldoc)
+    text_contents.append(soup.get_text())
